@@ -12,17 +12,27 @@
 #    http://www.gnu.org/licenses/gpl-3.0.html
 
 """Perform assembly based on debruijn graph."""
+#
+# import argparse
+# import os
+# import sys
+# import networkx as nx
+# import matplotlib
+# from operator import itemgetter
+# import random
+# random.seed(9001)
+# from random import randint
+# import statistics
 
 import argparse
 import os
 import sys
+import statistics
+import random
+import operator
 import networkx as nx
 import matplotlib
-from operator import itemgetter
-import random
 random.seed(9001)
-from random import randint
-import statistics
 
 __author__ = "Your Name"
 __copyright__ = "Universite Paris Diderot"
@@ -66,16 +76,31 @@ def get_arguments():
 
 
 def read_fastq(fastq_file):
-    pass
+    """ Retourne un générateur de séquences"""
+    with open(fastq_file,"rt") as monfic:
+        for line in monfic:
+            yield line.strip("\n")
 
 
 def cut_kmer(read, kmer_size):
-    pass
+    """Retourne un générateur de k-mer"""
+    for i in range(0, len(read)+1-kmer_size):
+        yield read[i:i+kmer_size]
 
 
 def build_kmer_dict(fastq_file, kmer_size):
-    pass
-
+    """ Retourne un dictionnaire : clé = k-mer, valeur = nb occurrences de ce k-mer"""
+    dict_k = dict()
+    gen_sequence = read_fastq(fastq_file)
+    gen_kmer = []
+    for seq in gen_sequence:
+        gen_kmer.append(cut_kmer(seq,kmer_size))
+    for kmer in gen_kmer:
+        if kmer in dict_k:
+            dict_k[kmer] +=1
+        else:
+            dict_k[kmer] = 1
+    return dict_k
 
 def build_graph(kmer_dict):
     pass
@@ -88,7 +113,7 @@ def std(data):
     pass
 
 
-def select_best_path(graph, path_list, path_length, weight_avg_list, 
+def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
     pass
 
