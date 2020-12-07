@@ -103,7 +103,10 @@ def build_kmer_dict(fastq_file, kmer_size):
     return dict_k
 
 def build_graph(kmer_dict):
-    pass
+    """ Créer un arbre de k-mers préfixes et suffixes """
+    drj_graph = nx.Graph()
+    for elm in kmer_dict.keys():
+        drj_graph.add_edge(elm[:-1],elm[1:],kmer_dict[elm])
 
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
