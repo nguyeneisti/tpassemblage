@@ -34,13 +34,13 @@ import networkx as nx
 import matplotlib
 random.seed(9001)
 
-__author__ = "Your Name"
+__author__ = "Delphine NGUYEN"
 __copyright__ = "Universite Paris Diderot"
-__credits__ = ["Your Name"]
+__credits__ = ["Delphine NGUYEN"]
 __license__ = "GPL"
 __version__ = "1.0.0"
-__maintainer__ = "Your Name"
-__email__ = "your@email.fr"
+__maintainer__ = "Delphine NGUYEN"
+__email__ = "nguyendelp@eisti.eu"
 __status__ = "Developpement"
 
 def isfile(path):
@@ -79,7 +79,10 @@ def read_fastq(fastq_file):
     """ Retourne un générateur de séquences"""
     with open(fastq_file,"rt") as monfic:
         for line in monfic:
-            yield line.strip("\n")
+            print(line)
+            yield next(monfic).strip("\n")
+            next(monfic)
+            next(monfic)
 
 
 def cut_kmer(read, kmer_size):
@@ -92,22 +95,24 @@ def build_kmer_dict(fastq_file, kmer_size):
     """ Retourne un dictionnaire : clé = k-mer, valeur = nb occurrences de ce k-mer"""
     dict_k = dict()
     gen_sequence = read_fastq(fastq_file)
-    gen_kmer = []
+    kmer_list = []
     for seq in gen_sequence:
-        gen_kmer.append(cut_kmer(seq,kmer_size))
-    for kmer in gen_kmer:
-        if kmer in dict_k:
-            dict_k[kmer] +=1
-        else:
-            dict_k[kmer] = 1
+        gen_kmer = cut_kmer(seq,kmer_size)
+        kmer_list.append(gen_kmer)
+    for kmer in kmer_list:
+        for k in kmer:
+            if k in dict_k:
+                dict_k[k] +=1
+            else:
+                dict_k[k] = 1
     return dict_k
 
 def build_graph(kmer_dict):
     """ Créer un arbre de k-mers préfixes et suffixes """
-    drj_graph = nx.Graph()
+    drj_graph = nx.DiGraph() #Directed graph ! Donc on utilise DiGraph, pas juste Graph !
     for elm in kmer_dict.keys():
-        drj_graph.add_edge(elm[:-1],elm[1:],kmer_dict[elm])
-
+        drj_graph.add_edge(elm[:-1],elm[1:], weight = kmer_dict[elm])
+    return drj_graph
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
     pass
@@ -136,16 +141,53 @@ def solve_out_tips(graph, ending_nodes):
     pass
 
 def get_starting_nodes(graph):
-    pass
+    """ Retourne une liste de noeuds d'entrée """
+    nodes_list = []
+    for node in graph.nodes():
+        if not graph.pred[node]:
+            nodes_list.append(node)
+    return nodes_list
 
 def get_sink_nodes(graph):
-    pass
+    """ Retourne une liste de noeuds de sortie """
+    nodes_list = []
+    for node in graph.nodes():
+        if not graph.succ[node]:
+            nodes_list.append(node)
+    return nodes_list
 
 def get_contigs(graph, starting_nodes, ending_nodes):
-    pass
+    """
+    Retourne une liste de tuples (contig, taille du contig).
+    Un contig est un chemin entre des noeuds d'entrée et des noeuds de sortie.
+    """
+    contigs_list = [] # liste de tuples : [(c1, len(c1)), (c2, len(c2)), ...]
+    for s_node in starting_nodes:
+        for e_node in ending_nodes:
+            paths_list = () #tuple (contig, taille du contig)
+            result = []
+            paths = nx.all_simple_paths(graph, source=s_node, target=e_node)
+            for p in paths:
+                for i in range(len(p)):
+                    result.append(p[i][0])
+                result.append(p[i][1])
+            paths_list = (''.join(result), len(result))
+            contigs_list.append(paths_list)
+    return contigs_list
+
+def fill(text, width=80):
+    """Split text with a line return to respect fasta format"""
+    return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
 
 def save_contigs(contigs_list, output_file):
-    pass
+    """ Sauvegarder les contigs dans un fichier texte"""
+    file = open(output_file,"w+")
+    for i in range(len(contigs_list)):
+        fasta = fill(contigs_list[i][0],80)
+        file.write(">contig_%d len=%d\n" %(i,contigs_list[i][1]))
+        file.write(fasta)
+        file.write("\n")
+    file.close()
 
 #==============================================================
 # Main program
