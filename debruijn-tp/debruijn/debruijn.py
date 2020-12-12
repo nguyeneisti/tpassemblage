@@ -115,30 +115,208 @@ def build_graph(kmer_dict):
     return drj_graph
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
-    pass
+    """ Retourne un graphe nettoyé des chemins indésirables"""
+    for node in path_list:
+        if delete_entry_node and delete_sink_node:
+            graph.remove_nodes_from(node)
+        elif delete_entry_node:
+            graph.remove_nodes_from(node[:-1])
+        elif delete_sink_node:
+            graph.remove_nodes_from(node[1:])
+        else:
+            graph.remove_nodes_from(node[1:-1])
+    return graph
+
 
 def std(data):
-    pass
+    """ Retourne l'écart type de la liste donnée en entrée """
+    return statistics.stdev(data)
 
 
 def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
-    pass
+    """ Retourne un graphe nettoyé des chemins indésirables """
+    best_weights_index = []
+    best_lengths = []
+    best_paths_index = []
+    random.seed(9001)
+    for weig in range(len(weight_avg_list)):
+        if weight_avg_list[weig] == max(weight_avg_list):
+            best_weights_index.append(weig)
+    for leng in range(len(path_length)):
+        #si la longueur a pour indice le même que celui d'un des meilleurs poids
+        if leng in best_weights_index:
+            best_lengths.append(path_length[leng])
+    for index in best_weights_index:
+        if path_length[index]==max(best_lengths):
+            best_paths_index.append(index)
+    best_path_index = random.choice(best_paths_index)
+    path_list.pop(best_path_index)
+    path_list2 = path_list
+    graph = remove_paths(graph,path_list2,delete_entry_node,delete_sink_node)
+    return graph
 
 def path_average_weight(graph, path):
-    pass
+    """ Retourne une moyenne des poids d'un chemin d'un graphe"""
+    avg = 0
+    for i in range(0,len(path)-1):
+        avg += graph[path[i]][path[i+1]]['weight']
+    avg = avg/(len(path)-1)
+    return avg
 
 def solve_bubble(graph, ancestor_node, descendant_node):
-    pass
+    """ Retourne un graphe nettoyé de la bulle entre le noeud ancetre et le noeud descendant """
+    all_paths = nx.all_simple_paths(graph, source=ancestor_node, target=descendant_node)
+    weight_avg_list = []
+    path_length = []
+    path_list = []
+    for p in all_paths:
+        path_list.append(p)
+        path_length.append(len(p))
+        weight_avg_list.append(path_average_weight(graph,p))
+    return select_best_path(graph, path_list, path_length, weight_avg_list)
+
 
 def simplify_bubbles(graph):
-    pass
+    """ Retourne un graphe sans bulle """
+    starting_nodes = get_starting_nodes(graph)
+    sink_nodes = get_sink_nodes(graph)
+    all_successors = []
+    all_predecessors = []
+    starting_node = []
+    ending_node = []
+    for s_node in starting_nodes:
+        for e_node in sink_nodes:
+            starting_node.append(s_node)
+            ending_node.append(e_node)
+            all_successors.append(graph.successors(starting_node[0]))
+            all_predecessors.append(graph.predecessors(ending_node[0]))
+            if len(all_successors)<2:
+                for node in all_successors:
+                    starting_node.clear()
+                    starting_node = list(node)
+                    all_successors.clear()
+                    all_successors.append(graph.successors(starting_node[0]))
+            if len(all_predecessors)<2:
+                for node in all_predecessors:
+                    ending_node.clear()
+                    ending_node = list(node)
+                    all_predecessors.clear()
+                    all_predecessors.append(graph.predecessors(ending_node[0]))
+            if [nx.all_simple_paths(graph,starting_node[0],ending_node[0])]:
+                graph = solve_bubble(graph, starting_node[0], ending_node[0])
+    return graph
+
 
 def solve_entry_tips(graph, starting_nodes):
-    pass
+    """Retourne un graphe sans chemin d'entrée indésirable"""
+    graph = simplify_bubbles(graph)
+    tous_chemins = [] #liste de liste de chemins, les chemins partant des noeuds d'entrée
+    tous_chemins2 = []
+    path = []
+    path_list2 = []
+    end_nodes = get_sink_nodes(graph)
+    all_successors = []
+    for node in starting_nodes:
+        path = []
+        s_node = node
+        while s_node not in end_nodes:
+            path.append(s_node)
+            all_successors.append(graph.successors(s_node))
+            for i in range(len(all_successors)):
+                for successor in all_successors[i]:
+                    s_node = successor
+        path.append(end_nodes[0])
+        tous_chemins.append(path)
+        print(tous_chemins)
+
+    length_list = [] #liste des longueurs de chaque chemin
+    weight_list = [] #liste des poids moyens pour chaque chemin
+    for path in tous_chemins:
+        weight_list.append(path_average_weight(graph,path))
+        length_list.append(len(path))
+    #pour chaque chemin de tous_chemins, on a un poids et une longueur
+
+    # On va trouver le meilleur chemin
+    sum = []
+    maxi = []
+    for i in range(len(weight_list)):
+        sum.append(weight_list[i]+(length_list[i]*2.5))
+    print(sum)
+    maxi.append(max(sum))
+    best_path_index = sum.index(maxi[0]) #indexe du meilleur chemin
+    chemin_a_enlever = [] #liste des noeuds à enlever
+    meilleur_chemin = tous_chemins[best_path_index]
+    tous_chemins.pop(best_path_index)
+    similarity_index = 0
+    for elm in tous_chemins:
+        for i in range(len(elm)):
+            if elm[i] not in meilleur_chemin:
+                similarity_index+=1
+                chemin_a_enlever.append(elm[i])
+        chemin_a_enlever.append(elm[similarity_index])
+        break
+    print(chemin_a_enlever)
+    path_list2.append(chemin_a_enlever)
+    graph2 = remove_paths(graph,path_list2,delete_entry_node=True,delete_sink_node=False)
+    return graph2
+
 
 def solve_out_tips(graph, ending_nodes):
-    pass
+    """Retourne un graphe sans chemin de sortie indésirable"""
+    graph = simplify_bubbles(graph)
+    tous_chemins = []
+    tous_chemins2 = []
+    path = []
+    path_list2 = []
+    start_nodes = get_starting_nodes(graph)
+    all_successors = []
+    for node in ending_nodes:
+        path = []
+        s_node = node
+        while s_node not in start_nodes:
+            path.append(s_node)
+            all_successors.append(graph.predecessors(s_node))
+            for i in range(len(all_successors)):
+                for successor in all_successors[i]:
+                    s_node = successor
+        path.append(start_nodes[0])
+        tous_chemins.append(path)
+        print(tous_chemins)
+    tous_chemins3 = []
+    for e in tous_chemins:
+        temp = e[::-1]
+        tous_chemins3.append(temp)
+    tous_chemins = tous_chemins3
+    print(tous_chemins)
+    length_list = []
+    weight_list = []
+    for path in tous_chemins:
+        weight_list.append(path_average_weight(graph,path))
+        length_list.append(len(path))
+
+    sum = []
+    maxi = []
+    for i in range(len(weight_list)):
+        sum.append(weight_list[i]+(length_list[i]*2.5))
+    print(sum)
+    maxi.append(max(sum))
+    best_path_index = sum.index(maxi[0])
+    chemin_a_enlever = []
+    meilleur_chemin = tous_chemins[best_path_index]
+    tous_chemins.pop(best_path_index)
+    similarity_index = 0
+    for elm in tous_chemins:
+        for i in range(len(elm)):
+            if elm[i] not in meilleur_chemin:
+                similarity_index+=1
+                chemin_a_enlever.append(elm[i])
+        chemin_a_enlever.append(elm[similarity_index])
+        break
+    print(chemin_a_enlever)
+    path_list2.append(chemin_a_enlever)
+    graph2 = remove_paths(graph,path_list2,delete_entry_node=True,delete_sink_node=False)
+    return graph2
 
 def get_starting_nodes(graph):
     """ Retourne une liste de noeuds d'entrée """
@@ -163,14 +341,15 @@ def get_contigs(graph, starting_nodes, ending_nodes):
     """
     contigs_list = [] # liste de tuples : [(c1, len(c1)), (c2, len(c2)), ...]
     for s_node in starting_nodes:
+        result = []
         for e_node in ending_nodes:
             paths_list = () #tuple (contig, taille du contig)
             result = []
             paths = nx.all_simple_paths(graph, source=s_node, target=e_node)
             for p in paths:
-                for i in range(len(p)):
-                    result.append(p[i][0])
-                result.append(p[i][1])
+                for elm in p:
+                    result.append(elm[0])
+                result.append(elm[1])
             paths_list = (''.join(result), len(result))
             contigs_list.append(paths_list)
     return contigs_list
