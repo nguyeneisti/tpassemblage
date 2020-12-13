@@ -32,7 +32,6 @@ import random
 import operator
 import networkx as nx
 import matplotlib
-random.seed(9001)
 
 __author__ = "Delphine NGUYEN"
 __copyright__ = "Universite Paris Diderot"
@@ -159,22 +158,23 @@ def select_best_path(graph, path_list, path_length, weight_avg_list,
 def path_average_weight(graph, path):
     """ Retourne une moyenne des poids d'un chemin d'un graphe"""
     avg = 0
-    for i in range(0,len(path)-1):
+    for i in range(len(path)-1):
         avg += graph[path[i]][path[i+1]]['weight']
-    avg = avg/(len(path)-1)
+    if avg!=0:
+        avg = avg/(len(path)-1)
+    else:
+        return 0
     return avg
 
 def solve_bubble(graph, ancestor_node, descendant_node):
     """ Retourne un graphe nettoyé de la bulle entre le noeud ancetre et le noeud descendant """
-    all_paths = nx.all_simple_paths(graph, source=ancestor_node, target=descendant_node)
+    all_paths = list(nx.all_simple_paths(graph, source=ancestor_node, target=descendant_node))
     weight_avg_list = []
     path_length = []
-    path_list = []
     for p in all_paths:
-        path_list.append(p)
         path_length.append(len(p))
         weight_avg_list.append(path_average_weight(graph,p))
-    return select_best_path(graph, path_list, path_length, weight_avg_list)
+    return select_best_path(graph, all_paths, path_length, weight_avg_list)
 
 
 def simplify_bubbles(graph):
@@ -203,7 +203,7 @@ def simplify_bubbles(graph):
                     ending_node = list(node)
                     all_predecessors.clear()
                     all_predecessors.append(graph.predecessors(ending_node[0]))
-            if [nx.all_simple_paths(graph,starting_node[0],ending_node[0])]:
+            if list(nx.all_simple_paths(graph,starting_node[0],ending_node[0])):
                 graph = solve_bubble(graph, starting_node[0], ending_node[0])
     return graph
 
@@ -228,21 +228,20 @@ def solve_entry_tips(graph, starting_nodes):
                     s_node = successor
         path.append(end_nodes[0])
         tous_chemins.append(path)
-        print(tous_chemins)
 
     length_list = [] #liste des longueurs de chaque chemin
     weight_list = [] #liste des poids moyens pour chaque chemin
+    for i in range(len(tous_chemins)):
+        weig = path_average_weight(graph,tous_chemins[i])
+        weight_list.append(weig)
     for path in tous_chemins:
-        weight_list.append(path_average_weight(graph,path))
         length_list.append(len(path))
     #pour chaque chemin de tous_chemins, on a un poids et une longueur
-
     # On va trouver le meilleur chemin
     sum = []
     maxi = []
     for i in range(len(weight_list)):
         sum.append(weight_list[i]+(length_list[i]*2.5))
-    print(sum)
     maxi.append(max(sum))
     best_path_index = sum.index(maxi[0]) #indexe du meilleur chemin
     chemin_a_enlever = [] #liste des noeuds à enlever
@@ -256,7 +255,6 @@ def solve_entry_tips(graph, starting_nodes):
                 chemin_a_enlever.append(elm[i])
         chemin_a_enlever.append(elm[similarity_index])
         break
-    print(chemin_a_enlever)
     path_list2.append(chemin_a_enlever)
     graph2 = remove_paths(graph,path_list2,delete_entry_node=True,delete_sink_node=False)
     return graph2
@@ -282,13 +280,11 @@ def solve_out_tips(graph, ending_nodes):
                     s_node = successor
         path.append(start_nodes[0])
         tous_chemins.append(path)
-        print(tous_chemins)
     tous_chemins3 = []
     for e in tous_chemins:
         temp = e[::-1]
         tous_chemins3.append(temp)
     tous_chemins = tous_chemins3
-    print(tous_chemins)
     length_list = []
     weight_list = []
     for path in tous_chemins:
@@ -299,7 +295,6 @@ def solve_out_tips(graph, ending_nodes):
     maxi = []
     for i in range(len(weight_list)):
         sum.append(weight_list[i]+(length_list[i]*2.5))
-    print(sum)
     maxi.append(max(sum))
     best_path_index = sum.index(maxi[0])
     chemin_a_enlever = []
@@ -313,7 +308,6 @@ def solve_out_tips(graph, ending_nodes):
                 chemin_a_enlever.append(elm[i])
         chemin_a_enlever.append(elm[similarity_index])
         break
-    print(chemin_a_enlever)
     path_list2.append(chemin_a_enlever)
     graph2 = remove_paths(graph,path_list2,delete_entry_node=True,delete_sink_node=False)
     return graph2
@@ -368,6 +362,26 @@ def save_contigs(contigs_list, output_file):
         file.write("\n")
     file.close()
 
+def draw_graph(graph, graphimg_file):
+    """Draw the graph
+    """
+    fig, ax = plt.subplots()
+    elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
+    #print(elarge)
+    esmall = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] <= 3]
+    #print(elarge)
+    # Draw the graph with networkx
+    #pos=nx.spring_layout(graph)
+    pos = nx.random_layout(graph)
+    nx.draw_networkx_nodes(graph, pos, node_size=6)
+    nx.draw_networkx_edges(graph, pos, edgelist=elarge, width=6)
+    nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5,
+                           edge_color='b', style='dashed')
+    #nx.draw_networkx(graph, pos, node_size=10, with_labels=False)
+    # save image
+    plt.savefig(graphimg_file)
+
+
 #==============================================================
 # Main program
 #==============================================================
@@ -377,6 +391,19 @@ def main():
     """
     # Get arguments
     args = get_arguments()
+    fastq_file = args.fastq_file
+    k_mer_size = args.kmer_size
+    output_file = args.output_file
+    dictio = build_kmer_dict(fastq_file,k_mer_size)
+    graph = build_graph(dictio)
+    graph2 = simplify_bubbles(graph)
+    starting_nodes = get_starting_nodes(graph2)
+    sink_nodes = get_sink_nodes(graph2)
+    graph3 = solve_entry_tips(graph2,starting_nodes)
+    graph3 = solve_out_tips(graph3,sink_nodes)
+    contigs_list = get_contigs(graph3, starting_nodes, sink_nodes)
+    save_contigs(contigs_list, output_file)
+    draw_graph(graph3,"graph.png")
 
 if __name__ == '__main__':
     main()
